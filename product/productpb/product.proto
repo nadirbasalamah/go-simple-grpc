@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package product;
+option go_package = "productpb";
+
+message Product {
+    int32 id = 1;
+    string name = 2;
+    string description = 3;
+    string category = 4;
+    int32 amount = 5;
+}
+
+message CreateProductRequest {
+    Product product = 1;
+}
+
+message CreateProductResponse {
+    Product product = 1;
+}
+
+message GetProductRequest {
+    int32 product_id = 1;
+}
+
+message GetProductResponse {
+    Product product = 1;
+}
+
+message EditProductRequest {
+    Product product = 1;
+}
+
+message EditProductResponse {
+    Product product = 1;
+}
+
+message DeleteProductRequest {
+    int32 product_id = 1;
+}
+
+message DeleteProductResponse {
+    int32 product_id = 1;
+}
+
+message GetProductsRequest {
+}
+
+message GetProductsResponse {
+    Product product = 1;
+}
+
+message CreateBatchProductRequest {
+    Product product = 1;
+}
+
+message CreateBatchProductResponse {
+    string batch_result = 1;
+}
+
+service ProductService {
+    rpc CreateProduct (CreateProductRequest) returns (CreateProductResponse) {};
+    rpc GetProduct (GetProductRequest) returns (GetProductResponse) {};
+    rpc EditProduct (EditProductRequest) returns (EditProductResponse) {};
+    rpc DeleteProduct (DeleteProductRequest) returns (DeleteProductResponse) {};
+    rpc GetProducts (GetProductsRequest) returns (stream GetProductsResponse) {};
+    rpc CreateBatchProduct (stream CreateBatchProductRequest) returns (CreateBatchProductResponse) {};
+}
