@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 
+	_ "github.com/lib/pq"
 	"github.com/nadirbasalamah/go-simple-grpc/database"
 	"github.com/nadirbasalamah/go-simple-grpc/model"
 	"github.com/nadirbasalamah/go-simple-grpc/product/productpb"
@@ -87,6 +88,12 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	fmt.Println("Product service started")
+
+	// connect to DB
+	if err := database.Connect(); err != nil {
+		log.Fatal(err)
+	}
+
 	lis, err := net.Listen("tcp", "0.0.0.0:50051")
 	if err != nil {
 		log.Fatalf("Failed to listen: %v\n", err)
