@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -22,23 +24,113 @@ type server struct {
 }
 
 func (*server) CreateProduct(ctx context.Context, req *productpb.CreateProductRequest) (*productpb.CreateProductResponse, error) {
-	return &productpb.CreateProductResponse{}, nil
+	productReq := req.GetProduct()
+
+	product := model.Product{
+		Name:        productReq.GetName(),
+		Description: productReq.GetDescription(),
+		Category:    productReq.GetCategory(),
+		Amount:      int(productReq.GetAmount()),
+	}
+
+	_, err := database.DB.Query("INSERT INTO products (name, description, category, amount) VALUES ($1, $2, $3, $4) ", product.Name, product.Description, product.Category, product.Amount)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			fmt.Sprintf("Internal error, insert data failed: %v", err),
+		)
+	}
+
+	return &productpb.CreateProductResponse{
+		Product: dataToProductPb(&product),
+	}, nil
 }
 func (*server) GetProduct(ctx context.Context, req *productpb.GetProductRequest) (*productpb.GetProductResponse, error) {
-	return &productpb.GetProductResponse{}, nil
+	id := req.GetProductId()
+	product := model.Product{}
+
+	row, err := database.DB.Query("SELECT * FROM products WHERE id = $1", id)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			fmt.Sprintf("Internal error, data cannot be retrieved: %v", err),
+		)
+	}
+
+	defer row.Close()
+
+	for row.Next() {
+		switch err := row.Scan(&product.ID, &product.Amount, &product.Name, &product.Description, &product.Category); err {
+		case sql.ErrNoRows:
+			return nil, status.Errorf(
+				codes.NotFound,
+				fmt.Sprintf("Data not found: %v", err),
+			)
+		case nil:
+			log.Println(product.Name, product.Description, product.Category, product.Amount)
+		default:
+			return nil, status.Errorf(
+				codes.Internal,
+				fmt.Sprintf("Internal error, data cannot be retrieved: %v", err),
+			)
+		}
+	}
+
+	if product.ID == 0 {
+		return nil, status.Errorf(
+			codes.NotFound,
+			fmt.Sprintf("Data not found: %v", err),
+		)
+	}
+
+	return &productpb.GetProductResponse{
+		Product: dataToProductPb(&product),
+	}, nil
 }
 func (*server) EditProduct(ctx context.Context, req *productpb.EditProductRequest) (*productpb.EditProductResponse, error) {
-	return &productpb.EditProductResponse{}, nil
+	productReq := req.GetProduct()
+	id := productReq.GetId()
+
+	product := model.Product{
+		Name:        productReq.GetName(),
+		Description: productReq.GetDescription(),
+		Category:    productReq.GetCategory(),
+		Amount:      int(productReq.GetAmount()),
+	}
+
+	_, err := database.DB.Query("UPDATE products SET name=$1, description=$2, category=$3, amount=$4 WHERE id=$5", product.Name, product.Description, product.Category, product.Amount, id)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			fmt.Sprintf("Internal error, update data failed: %v", err),
+		)
+	}
+
+	return &productpb.EditProductResponse{
+		Product: dataToProductPb(&product),
+	}, nil
 }
 func (*server) DeleteProduct(ctx context.Context, req *productpb.DeleteProductRequest) (*productpb.DeleteProductResponse, error) {
-	return &productpb.DeleteProductResponse{}, nil
+	id := req.GetProductId()
+
+	_, err := database.DB.Query("DELETE FROM products WHERE id = $1", id)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			fmt.Sprintf("Internal error, delete data failed: %v", err),
+		)
+	}
+
+	return &productpb.DeleteProductResponse{
+		ProductId: id,
+	}, nil
 }
 func (*server) GetProducts(req *productpb.GetProductsRequest, stream productpb.ProductService_GetProductsServer) error {
 	rows, err := database.DB.Query("SELECT id, name, description, category, amount FROM products ORDER BY name")
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			fmt.Sprintf("Internal error: %v", err),
+			fmt.Sprintf("Internal error, data cannot be retrieved: %v", err),
 		)
 	}
 
@@ -70,7 +162,34 @@ func (*server) GetProducts(req *productpb.GetProductsRequest, stream productpb.P
 
 }
 func (*server) CreateBatchProduct(stream productpb.ProductService_CreateBatchProductServer) error {
-	return nil
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return stream.SendAndClose(&productpb.CreateBatchProductResponse{
+				BatchResult: "All the data successfully inserted!",
+			})
+		}
+		if err != nil {
+			return status.Errorf(
+				codes.Internal,
+				fmt.Sprintf("Internal error, insert batch failed: %v", err),
+			)
+		}
+		product := model.Product{
+			Name:        req.GetProduct().GetName(),
+			Description: req.GetProduct().GetDescription(),
+			Category:    req.GetProduct().GetCategory(),
+			Amount:      int(req.GetProduct().GetAmount()),
+		}
+
+		_, err2 := database.DB.Query("INSERT INTO products (name, description, category, amount) VALUES ($1, $2, $3, $4) ", product.Name, product.Description, product.Category, product.Amount)
+		if err2 != nil {
+			return status.Errorf(
+				codes.Internal,
+				fmt.Sprintf("Internal error, insert batch failed: %v", err),
+			)
+		}
+	}
 }
 
 func dataToProductPb(data *model.Product) *productpb.Product {
