@@ -114,7 +114,7 @@ func (*server) CreateBatchProduct(stream productpb.ProductService_CreateBatchPro
 			Amount:      int(req.GetProduct().GetAmount()),
 		}
 
-		_, err2 := database.DB.Query("INSERT INTO products (name, description, category, amount) VALUES ($1, $2, $3, $4) ", product.Name, product.Description, product.Category, product.Amount)
+		_, err2 := service.CreateProduct(product)
 		if err2 != nil {
 			return status.Errorf(
 				codes.Internal,
